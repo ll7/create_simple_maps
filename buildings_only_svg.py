@@ -3,8 +3,11 @@ import xml.etree.ElementTree as ET
 # The color to filter by (already in percentage format)
 rgb_color_str = 'rgb(85.098039%,81.568627%,78.823529%)'
 
+# The scale factor applied during the export
+scale_factor = 1/1_500 # TODO: Replace this with the actual scale factor
+
 # Parse the SVG file
-tree = ET.parse('svg_maps/map2.svg')
+tree = ET.parse('svg_maps/map1.svg')
 root = tree.getroot()
 
 # Identify all elements with the specified color
@@ -18,6 +21,10 @@ if 'viewBox' in root.attrib:
     new_root.attrib['viewBox'] = root.attrib['viewBox']
 
 for elem in elements:
+    # Reverse the scaling for each element
+    for attr in ['width', 'height', 'x', 'y']:
+        if attr in elem.attrib:
+            elem.attrib[attr] = str(float(elem.attrib[attr]) / scale_factor)
     new_root.append(elem)
 
 # raise an error if elements is empty
