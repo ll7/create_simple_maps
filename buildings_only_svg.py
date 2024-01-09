@@ -7,17 +7,19 @@ print("Converting map now: " + time.strftime("%Y-%m-%d_%H:%M:%S"))
 # The color to filter by (already in percentage format)
 building_rgb_color_str = 'rgb(85.098039%,81.568627%,78.823529%)'
 
-# The scale factor applied during the export
-scale_factor = 1 # TODO: Replace this with the actual scale factor
-print("Scale factor: " + str(scale_factor))
+
 
 # Parse the SVG file
 map_folder = 'svg_maps'
-map_name = 'map3_1350'
+map_name = 'map4_5000'
 map_full_name = map_folder + '/' + map_name + '.svg'
 print("Map name: " + map_full_name)
 tree = ET.parse(map_full_name)
 root = tree.getroot()
+
+# The scale factor applied during the export
+scale_factor =  5000/1350 * 1/4.08 # TODO: Replace this with the actual scale factor
+print("Scale factor: " + str(scale_factor))
 
 # Identify all elements with the specified color
 # Initialize an empty list to store the elements
