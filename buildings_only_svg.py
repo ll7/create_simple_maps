@@ -1,5 +1,6 @@
 import xml.etree.ElementTree as ET
 import time
+import re
 
 print("Converting map now: " + time.strftime("%Y-%m-%d_%H:%M:%S"))
 
@@ -7,7 +8,7 @@ print("Converting map now: " + time.strftime("%Y-%m-%d_%H:%M:%S"))
 building_rgb_color_str = 'rgb(85.098039%,81.568627%,78.823529%)'
 
 # The scale factor applied during the export
-scale_factor = 1_350 # TODO: Replace this with the actual scale factor
+scale_factor = 1 # TODO: Replace this with the actual scale factor
 print("Scale factor: " + str(scale_factor))
 
 # Parse the SVG file
@@ -37,21 +38,29 @@ print("Create a new viewBox attribute")
 if 'viewBox' in root.attrib:
     viewbox = list(map(float, root.attrib['viewBox'].split()))
     print("old viewbox: " + str(viewbox))
-    # viewbox[2] *= scale_factor  # Scale the width
-    # viewbox[3] *= scale_factor  # Scale the height
+    viewbox[2] *= scale_factor  # Scale the width
+    viewbox[3] *= scale_factor  # Scale the height
     print("new viewbox: " + str(viewbox))
     new_root.attrib['viewBox'] = ' '.join(map(str, viewbox))
 
 for elem in elements:
-    print("Next element")
-    # Reverse the scaling for each element
-    for attr in ['width', 'height', 'x', 'y']:
-        if attr in elem.attrib:
-            original_value = elem.attrib[attr]
-            print(f'Original {attr} of element: {original_value}')
-            elem.attrib[attr] = str(float(elem.attrib[attr]) / scale_factor)
-            print(f'Scaled {attr} of element from {original_value} to {elem.attrib[attr]}')  # Debugging statement
-    # print("Element: " + str(elem.attrib))
+    # Check if the element is a path
+    if elem.tag.endswith('path'):
+        # Parse the d attribute
+        d = elem.attrib['d']
+        commands = re.findall(r'([A-Za-z])|(-?\d+(?:\.\d+)?)', d)
+
+        # Scale the coordinates
+        scaled_commands = []
+        for command in commands:
+            if command[0]:  # If it's a command
+                scaled_commands.append(command[0])
+            else:  # If it's a coordinate
+                scaled_commands.append(str(float(command[1]) * scale_factor))
+
+        # Reassemble the d attribute
+        elem.attrib['d'] = ' '.join(scaled_commands)
+
     new_root.append(elem)
 
 # Get the width of the image
