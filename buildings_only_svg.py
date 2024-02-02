@@ -7,98 +7,122 @@ to a new SVG file that contains only the buildings.
 import xml.etree.ElementTree as ET
 import time
 import re
+import logging
 
-print("Converting map now: " + time.strftime("%Y-%m-%d_%H:%M:%S"))
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
-# The color to filter by (already in percentage format)
-BUILDING_RGB_COLOR_STR = 'rgb(85.098039%,81.568627%,78.823529%)'
+def extract_buildings_as_obstacle(
+        map_full_name,
+        building_rgb_color_str:str = 'rgb(85.098039%,81.568627%,78.823529%)',
+        map_scale_factor:float = 5000):
+    """
+    Extracts the buildings from the SVG file and saves them to a new SVG file.
+    Args:
+    map_full_name (str): The full path to the SVG file.
+    building_rgb_color_str (str): The color to filter by (in percentage format).
+    map_scale_factor (float): The scale factor applied during the export.
+        !!!Tehere is uncertainty in this scale factor!!!
+    """
+    logger.info("Converting Map: %s", map_full_name)
+    tree = ET.parse(map_full_name)
+    root = tree.getroot()
 
+    # The scale factor applied during the export
+    scale_factor =  map_scale_factor/1350 * 1/4.08 # TODO: Replace this with the actual scale factor
+    logger.debug("Scale factor: %s", scale_factor)
 
-
-# Parse the SVG file
-MAP_FOLDER = 'svg_maps'
-MAP_NAME = 'map4_5000'
-MAP_FULL_NAME = MAP_FOLDER + '/' + MAP_NAME + '.svg'
-print("Map name: " + MAP_FULL_NAME)
-tree = ET.parse(MAP_FULL_NAME)
-root = tree.getroot()
-
-# The scale factor applied during the export
-SCALE_FACTOR =  5000/1350 * 1/4.08 # TODO: Replace this with the actual scale factor
-print("Scale factor: " + str(SCALE_FACTOR))
-
-# Identify all elements with the specified color
-# Initialize an empty list to store the elements
-elements = []
-# Iterate over all elements in the root object
-for elem in root.iter():
+    # Identify all elements with the specified color
+    # Initialize an empty list to store the elements
+    elements = []
+    # Iterate over all elements in the root object
+    for elem in root.iter():
     # Check if the element has a 'style' attribute and if the 'style' attribute 
     # contains the building_rgb_color_str
-    if 'style' in elem.attrib and BUILDING_RGB_COLOR_STR in elem.attrib['style']:
+        if 'style' in elem.attrib and building_rgb_color_str in elem.attrib['style']:
         # If the condition is met, add the element to the list
-        elements.append(elem)
+            elements.append(elem)
 
 
-# Create a new SVG file with just the elements
-new_root = ET.Element('svg', xmlns="http://www.w3.org/2000/svg")
+    # Create a new SVG file with just the elements
+    new_root = ET.Element('svg', xmlns="http://www.w3.org/2000/svg")
 
-# Copy viewBox attribute from the original root to the new root
-print("Create a new viewBox attribute")
-if 'viewBox' in root.attrib:
-    viewbox = list(map(float, root.attrib['viewBox'].split()))
-    print("old viewbox: " + str(viewbox))
-    viewbox[2] *= SCALE_FACTOR  # Scale the width
-    viewbox[3] *= SCALE_FACTOR  # Scale the height
-    print("new viewbox: " + str(viewbox))
-    new_root.attrib['viewBox'] = ' '.join(map(str, viewbox))
+    # Copy viewBox attribute from the original root to the new root
 
-for elem in elements:
+    if 'viewBox' in root.attrib:
+        viewbox = list(map(float, root.attrib['viewBox'].split()))
+        logger.debug("old viewbox: %s", viewbox)
+        viewbox[2] *= scale_factor  # Scale the width
+        viewbox[3] *= scale_factor  # Scale the height
+        logger.debug("new viewbox: %s", viewbox)
+        new_root.attrib['viewBox'] = ' '.join(map(str, viewbox))
+
+    for elem in elements:
     # Check if the element is a path
-    if elem.tag.endswith('path'):
-        # Parse the d attribute
-        d = elem.attrib['d']
-        commands = re.findall(r'([A-Za-z])|(-?\d+(?:\.\d+)?)', d)
+        if elem.tag.endswith('path'):
+            # Parse the d attribute
+            d = elem.attrib['d']
+            commands = re.findall(r'([A-Za-z])|(-?\d+(?:\.\d+)?)', d)
 
-        # Scale the coordinates
-        scaled_commands = []
-        for command in commands:
-            if command[0]:  # If it's a command
-                scaled_commands.append(command[0])
-            else:  # If it's a coordinate
-                scaled_commands.append(str(float(command[1]) * SCALE_FACTOR))
+            # Scale the coordinates
+            scaled_commands = []
+            for command in commands:
+                if command[0]:  # If it's a command
+                    scaled_commands.append(command[0])
+                else:  # If it's a coordinate
+                    scaled_commands.append(str(float(command[1]) * scale_factor))
 
-        # Reassemble the d attribute
-        elem.attrib['d'] = ' '.join(scaled_commands)
+            # Reassemble the d attribute
+            elem.attrib['d'] = ' '.join(scaled_commands)
+            elem.attrib['{http://www.inkscape.org/namespaces/inkscape}label'] = 'obstacle'
 
-    new_root.append(elem)
+        new_root.append(elem)
 
-# Get the width of the image
-viewbox = list(map(float, root.attrib['viewBox'].split()))
-image_width = viewbox[2]
+    # raise an error if elements is empty
+    if len(elements) == 0:
+        raise ValueError('No elements found with color ' + building_rgb_color_str)
 
-# Add an alternating black and white line over the whole image width
-line_length = 100  # Length of each line segment in meters
-for i in range(0, int(image_width), line_length):
-    color = "rgb(0,0,0)" if (i // line_length) % 2 == 0 else "rgb(100%,100%,100%)"
-    ET.SubElement(
-        new_root, 
-        'line', 
-        x1=str(i), 
-        y1="10", 
-        x2=str(i + line_length), 
-        y2="10", 
-        style=f"stroke:{color};stroke-width:2"
-        )
-scale_text = ET.SubElement(new_root, 'text', x="10", y="30", style="font-size:12px")
-# Replace this with the actual distance the scale bar represents
-scale_text.text = str(line_length) + " m"
+    return root,elements,new_root
 
-# raise an error if elements is empty
-if len(elements) == 0:
-    raise ValueError('No elements found with color {}'.format(BUILDING_RGB_COLOR_STR))
+if __name__ == "__main__":
+    logger.info("Converting map now: %s", time.strftime("%Y-%m-%d_%H:%M:%S"))
 
-# Save the new SVG file
-new_tree = ET.ElementTree(new_root)
-now = time.strftime("%Y%m%d-%H%M%S")
-filtered_map_name = 'filtered_' + MAP_NAME + '_' + now + '.svg'
-new_tree.write(filtered_map_name)
+    # The color to filter by (already in percentage format)
+    BUILDING_RGB_COLOR_STR = 'rgb(85.098039%,81.568627%,78.823529%)'
+
+    # Parse the SVG file
+    MAP_FOLDER = 'svg_maps'
+    MAP_NAME = 'map4_5000'
+    MAP_FULL_NAME = MAP_FOLDER + '/' + MAP_NAME + '.svg'
+
+    root, elements, new_root = extract_buildings_as_obstacle(MAP_FULL_NAME, BUILDING_RGB_COLOR_STR)
+
+    # Get the width of the image
+    viewbox = list(map(float, root.attrib['viewBox'].split()))
+    image_width = viewbox[2]
+
+    # Add an alternating black and white line over the whole image width
+    line_length = 100  # Length of each line segment in meters
+    for i in range(0, int(image_width), line_length):
+        color = "rgb(0,0,0)" if (i // line_length) % 2 == 0 else "rgb(100%,100%,100%)"
+        ET.SubElement(
+            new_root, 
+            'line', 
+            x1=str(i), 
+            y1="10", 
+            x2=str(i + line_length), 
+            y2="10", 
+            style=f"stroke:{color};stroke-width:2"
+            )
+    scale_text = ET.SubElement(new_root, 'text', x="10", y="30", style="font-size:12px")
+    # Replace this with the actual distance the scale bar represents
+    scale_text.text = str(line_length) + " m"
+
+    
+
+    # Save the new SVG file
+    new_tree = ET.ElementTree(new_root)
+    now = time.strftime("%Y%m%d-%H%M%S")
+    filtered_map_name = 'filtered_' + MAP_NAME + '_' + now + '.svg'
+    logger.info("Saving the new SVG file: %s", filtered_map_name)
+    new_tree.write(filtered_map_name)
