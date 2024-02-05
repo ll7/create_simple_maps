@@ -41,24 +41,34 @@ def extract_path_info(svg_file):
     # Iterate over each 'path' element
     for path in paths:
         # Extract the 'd' attribute (coordinates), 'inkscape:label' and 'id'
-        coordinates = path.attrib.get('d')
+        input_string = path.attrib.get('d')
         label = path.attrib.get('{http://www.inkscape.org/namespaces/inkscape}label')
         id_ = path.attrib.get('id')
 
         # Parse the coordinates string into a list of tuples
-        coordinates = re.findall("([+-]?[0-9]*[.]?[0-9]+),([+-]?[0-9]*[.]?[0-9]+)", coordinates)
-        coordinates = [(float(x), float(y)) for x, y in coordinates]
+        # string search is suitable for regex from inkscpae
+        filtered_coordinates = re.findall("([+-]?[0-9]*[.]?[0-9]+),([+-]?[0-9]*[.]?[0-9]+)", input_string)
+        # check if the there were any coordinates found,
+        # if not, extract the coordinates with a different regex
+        # regex is suitable for OpenStreetMap Export
+        if not filtered_coordinates:
+            filtered_coordinates = re.findall("([+-]?[0-9]*[.]?[0-9]+) ([+-]?[0-9]*[.]?[0-9]+)", input_string)
+        if not filtered_coordinates:
+            logger.warning("No coordinates found for path: %s", id_)
+            continue
+
+        tuple_coordinates = [(float(x), float(y)) for x, y in filtered_coordinates]
 
         # Convert the list of tuples into a numpy array
-        coordinates = np.array(coordinates)
+        np_coordinates = np.array(tuple_coordinates)
 
         # Append the information to the list
-        path_info.append({'coordinates': coordinates, 'label': label, 'id': id_})
+        path_info.append({'coordinates': np_coordinates, 'label': label, 'id': id_})
 
     return path_info
 
 # Use the function
-SVG_FILE_STR = 'filtered_map4_5000_20240202-113059.svg'
+SVG_FILE_STR = 'filtered_map4_5000_ink_edited.svg'
 svg_info = extract_path_info(SVG_FILE_STR)
 for info in svg_info:
     print(info)
