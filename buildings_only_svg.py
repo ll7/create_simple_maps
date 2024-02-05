@@ -82,7 +82,57 @@ def extract_buildings_as_obstacle(
     if len(elements) == 0:
         raise ValueError('No elements found with color ' + building_rgb_color_str)
 
-    return root,elements,new_root
+    return new_root
+
+def add_scale_bar_to_root(root: ET.Element, line_length: int = 100):
+    """
+    Adds a scale bar to the root element of an SVG image.
+
+    Parameters:
+        root (ET.Element): The root element of the SVG image.
+        line_length (int): The length of each line segment in meters.
+
+    Returns:
+        ET.Element: The modified root element with the scale bar added.
+    """
+    # Get the width of the image
+    viewbox = list(map(float, root.attrib['viewBox'].split()))
+    image_width = viewbox[2]
+
+    # Add an alternating black and white line over the whole image width
+    line_length = 100  # Length of each line segment in meters
+    for i in range(0, int(image_width), line_length):
+        color = "rgb(0,0,0)" if (i // line_length) % 2 == 0 else "rgb(100%,100%,100%)"
+        ET.SubElement(
+            root, 
+            'line', 
+            x1=str(i), 
+            y1="10", 
+            x2=str(i + line_length), 
+            y2="10", 
+            style=f"stroke:{color};stroke-width:2"
+            )
+    scale_text = ET.SubElement(root, 'text', x="10", y="30", style="font-size:12px")
+    # Replace this with the actual distance the scale bar represents
+    scale_text.text = str(line_length) + " m"
+
+    return root
+
+def save_root_as_svg(root: ET.Element, filename: str, add_conversion_time: bool = False):
+    """
+    Saves the root element as an SVG file.
+
+    Parameters:
+        root (ET.Element): The root element of the SVG image.
+        filename (str): The name of the SVG file to save. Include `.svg` in the name.
+        add_conversion_time (bool): Whether to add the current time to the filename.
+    """
+    tree = ET.ElementTree(root)
+    if add_conversion_time:
+        now = time.strftime("%Y%m%d-%H%M%S")
+        filename = filename.replace('.svg', f'_{now}.svg')
+    tree.write(filename)
+    logger.info("Saving the new SVG file: %s", filename)
 
 if __name__ == "__main__":
     logger.info("Converting map now: %s", time.strftime("%Y-%m-%d_%H:%M:%S"))
@@ -95,34 +145,11 @@ if __name__ == "__main__":
     MAP_NAME = 'map4_5000'
     MAP_FULL_NAME = MAP_FOLDER + '/' + MAP_NAME + '.svg'
 
-    root, elements, new_root = extract_buildings_as_obstacle(MAP_FULL_NAME, BUILDING_RGB_COLOR_STR)
-
-    # Get the width of the image
-    viewbox = list(map(float, root.attrib['viewBox'].split()))
-    image_width = viewbox[2]
-
-    # Add an alternating black and white line over the whole image width
-    line_length = 100  # Length of each line segment in meters
-    for i in range(0, int(image_width), line_length):
-        color = "rgb(0,0,0)" if (i // line_length) % 2 == 0 else "rgb(100%,100%,100%)"
-        ET.SubElement(
-            new_root, 
-            'line', 
-            x1=str(i), 
-            y1="10", 
-            x2=str(i + line_length), 
-            y2="10", 
-            style=f"stroke:{color};stroke-width:2"
-            )
-    scale_text = ET.SubElement(new_root, 'text', x="10", y="30", style="font-size:12px")
-    # Replace this with the actual distance the scale bar represents
-    scale_text.text = str(line_length) + " m"
-
-    
+    new_root = extract_buildings_as_obstacle(MAP_FULL_NAME, BUILDING_RGB_COLOR_STR)
+    new_root = add_scale_bar_to_root(new_root)
 
     # Save the new SVG file
-    new_tree = ET.ElementTree(new_root)
+    
     now = time.strftime("%Y%m%d-%H%M%S")
     filtered_map_name = 'filtered_' + MAP_NAME + '_' + now + '.svg'
-    logger.info("Saving the new SVG file: %s", filtered_map_name)
-    new_tree.write(filtered_map_name)
+    save_root_as_svg(new_root, filtered_map_name, add_conversion_time=False)
