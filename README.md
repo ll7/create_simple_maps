@@ -1,3 +1,5 @@
+This was a simple test to see how I could extract map data from osm.This repo is now archived.
+
 # Create Simple Maps
 
 Create simple maps that only display the building outlines based on open street map maps:
